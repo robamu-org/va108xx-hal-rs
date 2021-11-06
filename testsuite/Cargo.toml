@@ -1,0 +1,15 @@
+# NOTE `[[test]].harness` is required for *each*
+# file in `tests/*.rs
+[[test]]
+name = "gpio_output.rs"
+harness = false # don't use the standard harness (`test` crate)
+
+[dev-dependencies]
+defmt-test = "0.2.3"
+
+[dev-dependencies.va108xx-hal]
+path = "../va108xx-hal"
+
+[profile.dev]
+# highly recommended! it speeds up running the test suite
+opt-level = "s"
