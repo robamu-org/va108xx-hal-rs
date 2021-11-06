@@ -1,15 +1,34 @@
+[package]
+# TODO(1) fix `authors` if you didn't use `cargo-generate`
+authors = ["Robin Muller <robin.mueller.m@gmail.com"]
+name = "testsuite"
+publish = false
+edition = "2018"
+version = "0.1.0"
+
 # NOTE `[[test]].harness` is required for *each*
 # file in `tests/*.rs
 [[test]]
-name = "gpio_output.rs"
+name = "test"
 harness = false # don't use the standard harness (`test` crate)
 
-[dev-dependencies]
+[dependencies]
+va108xx-hal = { path = ".." }
+cortex-m = "0.6.3"
+cortex-m-rt = "0.6.12"
+defmt = "0.2.3"
+defmt-rtt = "0.2.0"
 defmt-test = "0.2.3"
-
-[dev-dependencies.va108xx-hal]
-path = "../va108xx-hal"
+panic-probe = { version = "0.2.0", features = ["print-defmt"] }
 
 [profile.dev]
 # highly recommended! it speeds up running the test suite
 opt-level = "s"
+
+# do NOT modify these features
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []
