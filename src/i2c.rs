@@ -9,7 +9,7 @@ use crate::{
     time::Hertz,
     Sealed,
 };
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ops::Add};
 use embedded_hal::blocking::i2c::{
     Read, SevenBitAddress, TenBitAddress, Write, WriteIter, WriteIterRead, WriteRead,
 };
@@ -62,6 +62,34 @@ pub enum I2cDirection {
 pub enum I2cAddress {
     Regular(u8),
     TenBit(u16),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AddrType {
+    Regular = 0,
+    TenBit = 1
+}
+
+//==================================================================================================
+// Address Size
+//==================================================================================================
+
+/// Configuration trait for the Word Size
+/// used by the SPI peripheral
+pub trait AddrTrait {
+    fn addr_type() -> AddrType;
+}
+
+impl AddrTrait for u8 {
+    fn addr_type() -> AddrType {
+        AddrType::Regular
+    }
+}
+
+impl AddrTrait for u16 {
+    fn addr_type() -> AddrType {
+        AddrType::TenBit
+    }
 }
 
 //==================================================================================================
@@ -736,15 +764,21 @@ pub struct I2cSlave<I2C, ADDR = SevenBitAddress> {
 macro_rules! i2c_slave {
     ($($I2CX:ident: ($i2cx:ident, $i2cx_slave:ident),)+) => {
         $(
-            impl<ADDR> I2cSlave<$I2CX, ADDR> {
-                fn $i2cx_slave(
+            impl<ADDR: AddrTrait> I2cSlave<$I2CX, ADDR> {
+                pub fn $i2cx_slave(
                     i2c: $I2CX,
                     cfg: SlaveConfig,
                     sys_clk: impl Into<Hertz> + Copy,
                     speed_mode: I2cSpeed,
                     sys_cfg: Option<&mut SYSCONFIG>,
-                ) -> Self {
-                    I2cSlave {
+                ) -> Result<Self, Error> {
+                    if ADDR::addr_type() == AddrType::Regular {
+                        if let I2cAddress::TenBit(_) = cfg.addr {
+                            return Err(Error::WrongAddrMode);
+                        }
+                    }
+                    Ok(
+                        I2cSlave {
                         i2c_base: I2cBase::$i2cx(
                             i2c,
                             sys_clk,
@@ -754,8 +788,9 @@ macro_rules! i2c_slave {
                             sys_cfg
                         ),
                         _addr: PhantomData,
-                    }
-                    .enable_slave()
+                        }
+                        .enable_slave()
+                    )
                 }
 
                 #[inline]
@@ -887,36 +922,8 @@ macro_rules! i2c_slave {
                         }
                     }
                 }
-            }
-
-
-            impl I2cSlave<$I2CX, SevenBitAddress> {
-                /// Create a new I2C slave for seven bit addresses
-                ///
-                /// Returns a [`Error::WrongAddrMode`] error if a ten bit address is passed
-                pub fn i2ca(
-                    i2c: $I2CX,
-                    cfg: SlaveConfig,
-                    sys_clk: impl Into<Hertz> + Copy,
-                    speed_mode: I2cSpeed,
-                    sys_cfg: Option<&mut SYSCONFIG>,
-                ) -> Result<Self, Error> {
-                    if let I2cAddress::TenBit(_) = cfg.addr {
-                        return Err(Error::WrongAddrMode);
-                    }
-                    Ok(Self::$i2cx_slave(i2c, cfg, sys_clk, speed_mode, sys_cfg))
-                }
-            }
-
-            impl I2cSlave<$I2CX, TenBitAddress> {
-                pub fn $i2cx(
-                    i2c: $I2CX,
-                    cfg: SlaveConfig,
-                    sys_clk: impl Into<Hertz> + Copy,
-                    speed_mode: I2cSpeed,
-                    sys_cfg: Option<&mut SYSCONFIG>,
-                ) -> Self {
-                    Self::$i2cx_slave(i2c, cfg, sys_clk, speed_mode, sys_cfg)
+                pub fn slave_irq_handler(&mut self, buffer: &mut [u8]) {
+                    let irq_enb = self.i2c_base.i2c.irq_enb.read();
                 }
             }
         )+
